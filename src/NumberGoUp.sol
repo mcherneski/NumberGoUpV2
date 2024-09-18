@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Ownable} from '@openzeppelin/contracts/access/Ownable.sol';
 import {Strings} from '@openzeppelin/contracts/utils/Strings.sol';
 import {NGU404} from './NGU404.sol';
+import {ERC404UniswapV3Exempt} from './extensions/ERC404UniswapV3Exempt.sol';
 
 contract NumberGoUp is Ownable, NGU404, ERC404UniswapV3Exempt {
    string public _uriBase = "https://ipfs.io/ipfs/QmUMUSjDwvMqgbPneHnvpQAt8cEBDEDgDZUyYM93qazLga/";
@@ -22,9 +23,9 @@ contract NumberGoUp is Ownable, NGU404, ERC404UniswapV3Exempt {
    ) 
       NGU404(name_, symbol_, decimals_)
       Ownable(initialOwner_)
-      ERC404UniSwapV3Exempt(
+      ERC404UniswapV3Exempt(
          uniswapSwapRouter_,
-         uniswapv3NonFungiblePositionManager_
+         uniswapV3NonfungiblePositionManager_
       )
    {
       // Do not mint 721s to initial owner

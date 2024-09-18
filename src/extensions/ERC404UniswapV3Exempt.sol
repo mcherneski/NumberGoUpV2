@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 import {NGU404} from "../NGU404.sol";
 import {IPeripheryImmutableState} from "@uniswap/v3-periphery/contracts/interfaces/IPeripheryImmutableState.sol";
 
-abstract contract ERC404UniswapV3Exempt is ERC404 {
+abstract contract ERC404UniswapV3Exempt is NGU404 {
   error ERC404UniswapV3ExemptFactoryMismatch();
   error ERC404UniswapV3ExemptWETH9Mismatch();
 
