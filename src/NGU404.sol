@@ -164,7 +164,7 @@ function owned(
 function erc721BalanceOf(
    address owner_
 ) public view virtual returns (uint256) {
-   return balanceOf[owner_];
+   return _owned[owner_].length;
 }
 
 function erc20BalanceOf(
@@ -235,7 +235,8 @@ function addOwnedToken(address owner, uint256 tokenId) internal {
    ) internal virtual returns (bool) {
       address staker = msg.sender;
       // 1. Remove one whole ERC20 token from the staker's balanceOf mapping
-      require(balanceOf[staker] >= units, "Insufficent balance to stake");
+      require(erc721BalanceOf(staker) > 0, "No NFTs to stake");
+      require(balanceOf[staker] >= units, "Insufficent ERC20 balance to stake");
       balanceOf[staker] -= units;
 
       // 2. Add one whole ERC20 token to the staker's stakedERC20TokenBank mapping

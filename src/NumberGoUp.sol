@@ -7,8 +7,7 @@ import {NGU404} from "./NGU404.sol";
 import {ERC404UniswapV3Exempt} from "./extensions/ERC404UniswapV3Exempt.sol";
 
 contract NumberGoUp is Ownable, NGU404, ERC404UniswapV3Exempt {
-    string public _uriBase =
-        "https://ipfs.io/ipfs/QmUMUSjDwvMqgbPneHnvpQAt8cEBDEDgDZUyYM93qazLga/";
+    string public _uriBase = "https://ipfs.io/ipfs/QmUMUSjDwvMqgbPneHnvpQAt8cEBDEDgDZUyYM93qazLga/";
     uint256 public constant variants = 5;
     using Strings for uint256;
 
