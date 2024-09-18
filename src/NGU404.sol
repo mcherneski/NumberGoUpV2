@@ -5,6 +5,7 @@ import {INGU404} from "./interfaces/INGU404.sol";
 import {ERC721Events} from "./lib/ERC721Events.sol";
 import {ERC20Events} from "./lib/ERC20Events.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 
 import "./lib/DoubleEndedQueue.sol";
 
@@ -28,6 +29,12 @@ abstract contract NGU404 is INGU404 {
 
     /// @dev The total number of ERC721 tokens minted.
     uint256 public minted;
+
+  /// @dev Initial chain id for EIP-2612 support
+  uint256 internal immutable _INITIAL_CHAIN_ID;
+
+  /// @dev Initial domain separator for EIP-2612 support
+  bytes32 internal immutable _INITIAL_DOMAIN_SEPARATOR;
 
     /// @dev A mapping of users to their held ERC20 tokens.
     mapping(address => uint256) public stakedERC20TokenBank;
@@ -67,6 +74,10 @@ abstract contract NGU404 is INGU404 {
         }
         decimals = decimals_;
         units = 10 ** decimals;
+
+   // EIP-2612 initialization
+    _INITIAL_CHAIN_ID = block.chainid;
+    _INITIAL_DOMAIN_SEPARATOR = _computeDomainSeparator();
     }
 
 /// @notice tokenURI must be implemented by child contract
@@ -168,7 +179,7 @@ function erc20Staked(
    return stakedERC20TokenBank[owner_];
 }
 
-function erc20TotalSuppoly() public view virtual returns (uint256) {
+function erc20TotalSupply() public view virtual returns (uint256) {
    return totalSupply;
 }
 
@@ -545,6 +556,97 @@ function removeOwnedById(address owner, uint256 tokenId) internal {
     _owned[owner].pop();
 }
 
+ /// @notice Function for EIP-2612 permits (ERC-20 only).
+  /// @dev Providing type(uint256).max for permit value results in an
+  ///      unlimited approval that is not deducted from on transfers.
+  function permit(
+    address owner_,
+    address spender_,
+    uint256 value_,
+    uint256 deadline_,
+    uint8 v_,
+    bytes32 r_,
+    bytes32 s_
+  ) public virtual {
+    if (deadline_ < block.timestamp) {
+      revert PermitDeadlineExpired();
+    }
+
+    // permit cannot be used for ERC-721 token approvals, so ensure
+    // the value does not fall within the valid range of ERC-721 token ids.
+    if (value_ >= type(uint256).max) {
+      revert InvalidApproval();
+    }
+
+    if (spender_ == address(0)) {
+      revert InvalidSpender();
+    }
+
+    unchecked {
+      address recoveredAddress = ecrecover(
+        keccak256(
+          abi.encodePacked(
+            "\x19\x01",
+            DOMAIN_SEPARATOR(),
+            keccak256(
+              abi.encode(
+                keccak256(
+                  "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                ),
+                owner_,
+                spender_,
+                value_,
+                nonces[owner_]++,
+                deadline_
+              )
+            )
+          )
+        ),
+        v_,
+        r_,
+        s_
+      );
+
+      if (recoveredAddress == address(0) || recoveredAddress != owner_) {
+        revert InvalidSigner();
+      }
+
+      allowance[recoveredAddress][spender_] = value_;
+    }
+
+    emit ERC20Events.Approval(owner_, spender_, value_);
+  }
+
+  /// @notice Internal function to compute domain separator for EIP-2612 permits
+  function _computeDomainSeparator() internal view virtual returns (bytes32) {
+    return
+      keccak256(
+        abi.encode(
+          keccak256(
+            "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+          ),
+          keccak256(bytes(name)),
+          keccak256("1"),
+          block.chainid,
+          address(this)
+        )
+      );
+  }
+  /// @notice Returns domain initial domain separator, or recomputes if chain id is not equal to initial chain id
+  function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
+    return
+      block.chainid == _INITIAL_CHAIN_ID
+        ? _INITIAL_DOMAIN_SEPARATOR
+        : _computeDomainSeparator();
+  }
+
+  function supportsInterface(
+    bytes4 interfaceId
+  ) public view virtual returns (bool) {
+    return
+      interfaceId == type(INGU404).interfaceId ||
+      interfaceId == type(IERC165).interfaceId;
+  }
 
 
 }
