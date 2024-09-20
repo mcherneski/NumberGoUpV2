@@ -15,7 +15,7 @@ contract NumberGoUp is Ownable, NGU404, ERC404UniswapV3Exempt {
         string memory name_,
         string memory symbol_,
         uint8 decimals_,
-        uint256 maxSupplyERC20_,
+        uint256 maxTotalSupply_,
         address initialOwner_,
         address initialMintRecipient_,
         address uniswapSwapRouter_,
@@ -30,9 +30,8 @@ contract NumberGoUp is Ownable, NGU404, ERC404UniswapV3Exempt {
     {
         // Do not mint 721s to initial owner
         _setERC721TransferExempt(initialMintRecipient_, true);
-        _mintERC20(initialMintRecipient_, maxSupplyERC20_ * units);
+        _mintERC20(initialMintRecipient_, maxTotalSupply_ * units);
     }
-
     function tokenURI(
         uint256 id
     ) public view virtual override returns (string memory) {
