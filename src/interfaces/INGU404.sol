@@ -41,7 +41,7 @@ interface INGU404 is IERC165 {
     // ERC20 Functions
     function erc20BalanceOf(address owner_) external view returns (uint256);
 
-    function erc20Staked(address owner_) external view returns (uint256);
+    function getStakedTokens(address owner_) external view returns (uint256[] memory);
 
     function erc20TotalSupply() external view returns (uint256);
 

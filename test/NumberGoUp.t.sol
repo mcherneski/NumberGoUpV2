@@ -44,7 +44,7 @@ contract NumberGoUpTest is Test {
       assertEq(numberGoUp.balanceOf(recipient), 0);
    }
 
-   function testTransfer5TokensFromOwner() public {
+   function testTransferTokensFromOwner() public {
       // Transfer 5 tokens to recipient
       numberGoUp.transfer(recipient, 5 * (10 ** decimals));
       assertEq(numberGoUp.erc20BalanceOf(recipient), 5 * (10 ** decimals));
@@ -57,12 +57,23 @@ contract NumberGoUpTest is Test {
    }
 
    function testStakeNFT() public {
-      testTransfer5TokensFromOwner();
+      testTransferTokensFromOwner();
       // Stake NFT
       vm.prank(recipient);
       numberGoUp.stakeNFT(1);
-      assertEq(numberGoUp.erc721BalanceOf(recipient), 4);
+      assertEq(numberGoUp.erc721BalanceOf(recipient), 5);
       assertEq(numberGoUp.getStakedERC20Balance(recipient), 1 * (10 ** decimals));
 
+      // Make sure NFT IDs are removed from queue.
+      
+      
+      // Make sure the _staked and _stakedData info are correct.
+   }
+
+   function testFailTransferStakeNFT() public {
+      vm.prank(recipient);
+      testStakeNFT();
+
+      numberGoUp.stakeNFT(1);
    }
 }

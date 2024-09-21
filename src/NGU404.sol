@@ -121,7 +121,7 @@ abstract contract NGU404 is INGU404 {
         return stakedERC20TokenBank[owner_];
     }
 
-    function getStaked721IDs(address owner_) public view virtual returns (uint256[] memory) {
+    function getStakedTokens(address owner_) public view virtual returns (uint256[] memory) {
         return _staked[owner_];
     }
 
@@ -135,6 +135,7 @@ abstract contract NGU404 is INGU404 {
 
     /// @notice This function handles consolidated ERC721 functions.
     /// Handles both minting and transferring 721s, based on from_ and to_ addresses.
+    /// @dev - Currently set up to transfer the first item in from_'s queue if id_ = 0
     function _transferERC721(
         address from_,
         address to_,
@@ -142,13 +143,17 @@ abstract contract NGU404 is INGU404 {
     ) internal virtual {
         uint256 tokenId;
         if (from_ != address(0)) {
-            
-            // If this sale is coming from an address.
+            // If this is not a mint.
             // Pop from the sender's selling queue
-            tokenId = _sellingQueue[from_].popFront();
+            if (id_ == 0){
+                tokenId = _sellingQueue[from_].popFront();
+            }
             // Remove from from_'s _owned array.
             removeOwnedById(from_, tokenId);
+            delete _ownedData[tokenId];
+            
         } else {
+            // This is a mint - Just take id_
             tokenId = id_;
         }
 
@@ -165,7 +170,8 @@ abstract contract NGU404 is INGU404 {
         } else {
             // If this is a burn
             // Front of queue already popped in the _withdrawAndBurn721 function.
-            // Set owner to 0x0 in the ownedData mapping.
+            /// @dev - TODO: Test this function with and without the _setOwnerOf function.
+            // Set owner to 0x0 in the ownedData mapping - Not sure if I need to do this since I just delete it from _ownedData. 
             _setOwnerOf(tokenId, address(0));
             // delete the token from the ownedData mapping.
             delete _ownedData[tokenId];
@@ -509,6 +515,16 @@ abstract contract NGU404 is INGU404 {
 
         // Transferring ERC-20s directly requires the _transferERC20WithERC721 function
         return _transferERC20WithERC721(msg.sender, to_, value_);
+    }
+
+    /// @dev - Maybe this is where we transfer ERC-721 tokens?? If we don't have an ID encoding prefix, it's hard
+    /// to tell what kind of asset we are attempting to transfer. 
+    /// @notice - Ideas: include a prefix like NGU-##?
+    function safeTransfer (
+        address to_,
+        uint256 id_
+    ) public virtual returns (bool) {
+        
     }
 
     function safeTransferFrom(
