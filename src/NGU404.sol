@@ -309,14 +309,15 @@ abstract contract NGU404 is INGU404 {
 
         return true;
     }
-
+/// @dev - TODO:
+/// Create a good function to call for when I want to get the count of items in queue
     function getNextQueueId(
         address owner_
     ) public view virtual returns (uint256) {
         return _sellingQueue[owner_].front();
     }
 
-    /// @notice - This is the function we will use to get N items from the queue. Iterate over this for indices 0 to n - 1.
+/// @notice - This is the function we will use to get N items from the queue. Iterate over this for indices 0 to n - 1.
     function getIdAtQueueIndex(
         address owner_,
         uint128 index_
@@ -324,16 +325,30 @@ abstract contract NGU404 is INGU404 {
         return _sellingQueue[owner_].at(index_);
     }
 
-    /// @notice - This does what is intended above but it's mostly in the smart contract. Secondary implementation option.
+/// @notice - This does what is intended above but it's mostly in the smart contract. Secondary implementation option.
+/// @notice - Refactor this trash.
     function getERC721TokensInQueue(
-        uint256 start_,
         address owner_,
         uint256 count_
     ) public view virtual returns (uint256[] memory) {
-        uint256[] memory tokensInQueue = new uint256[](count_);
+        // We are creating a new count variable so we can do logic checks.
+    
+    /// @dev - TODO: Revert or return an empty array if queue is empty
+        // if (_sellingQueue[owner_].empty)
+        // {
+        //     revert
+        // }
 
-        for (uint256 i = start_; i < start_ + count_; ) {
-            tokensInQueue[i - start_] = _sellingQueue[owner_].at(i);
+        uint256 count;
+        uint256 queueLength = _sellingQueue[owner_].size();
+        
+        if (queueLength < count_){
+            count = queueLength;
+        }
+        uint256[] memory tokensInQueue = new uint256[](count);
+        
+        for (uint256 i = 0; i < count; ) {
+            tokensInQueue[i] = _sellingQueue[owner_].at(i);
 
             unchecked {
                 ++i;
@@ -343,61 +358,58 @@ abstract contract NGU404 is INGU404 {
         return tokensInQueue;
     }
 
-    // Helper function to add a token ID to an owner's _owned array
+/// @dev - Helper function to add a token ID to an owner's _owned array
+/// @notice - may want to add selling queue stuff as well. 
     function addOwnedToken(address owner, uint256 tokenId) internal {
         uint256 index = _owned[owner].length;
         _owned[owner].push(tokenId);
-
-        // Update packed data
+        // Update packed data for _ownedData
         _setOwnerOf(tokenId, owner);
         _setOwnedIndex(tokenId, index);
+        // Add to selling queue (?)
     }
 
     function stakeNFT(uint256 id_) public virtual returns (bool) {
-        address staker = msg.sender;
-        // 1. Remove one whole ERC20 token from the staker's balanceOf mapping
-        require(erc721BalanceOf(staker) > 0, "No NFTs to stake");
+        require(_getOwnerOf(id_) == msg.sender);
+        require(erc721BalanceOf(msg.sender) > 0, "No NFTs to stake");
         require(
-            balanceOf[staker] >= units,
+            balanceOf[msg.sender] >= units,
             "Insufficent ERC20 balance to stake"
         );
-        balanceOf[staker] -= units;
-
-        // 2. Add one whole ERC20 token to the staker's stakedERC20TokenBank mapping
-        stakedERC20TokenBank[staker] += units;
-
-        //3. Remove the associated ERC721 token ID from the _selling queue
+        // Remove the associated ERC721 token ID from the _sellingQueue
         _sellingQueue[msg.sender].removeById(id_);
 
-        // 4. Add the associated ERC721 token ID to the _staked array
-            // Add the ID to the _staked stack
-            _staked[staker].push(id_);
-            // Set up the _stakedData mapping, does not handle index
-            _stakeTokenById(id_, staker);
-            // Set the _stakedData index mapping.
-            _setStakedIndex(id_, _staked[staker].length - 1);
+        // Remove one whole ERC20 token from the msg.sender's balanceOf mapping
+        balanceOf[msg.sender] -= units;
+
+        // Add one whole ERC20 token to the msg.sender's stakedERC20TokenBank mapping
+        stakedERC20TokenBank[msg.sender] += units;
+
+        // Add the ID to the _staked stack
+        _staked[msg.sender].push(id_);
+        // Set the _stakedData index mapping.
+        _setStakedIndex(id_, _staked[msg.sender].length - 1);
+        // Set up the _stakedData mapping, does not handle index
+        _setStakedIdOwner(id_, msg.sender);
 
         return true;
     }
 
     function unStakeNFT(uint256 id_) public virtual returns (bool) {
-        address staker = msg.sender;
+        require(_getOwnerOfStakedId(id_) == msg.sender, "Only owner can unstake.");
 
-        // 1. Remove one whole ERC20 token from the staker's stakedERC20TokenBank mapping
-        require(
-            stakedERC20TokenBank[staker] >= units,
-            "Insufficent balance to unstake"
-        );
-        stakedERC20TokenBank[staker] -= units;
+        // 1. Remove one whole ERC20 token from the msg.sender's stakedERC20TokenBank mapping
+        require( stakedERC20TokenBank[msg.sender] >= units, "Insufficent balance to unstake");
+        stakedERC20TokenBank[msg.sender] -= units;
 
-        // 2. Add one whole ERC20 token to the staker's balanceOf mapping
-        balanceOf[staker] += units;
+        // 2. Add one whole ERC20 token to the msg.sender's balanceOf mapping
+        balanceOf[msg.sender] += units;
 
         // 3. Remove the associated ERC721 token ID from the _staked array
-        removeStakedById(staker, id_);
+        removeStakedById(msg.sender, id_);
 
         // 4. Add the associated ERC721 token ID back to the _sellingQueue
-        _sellingQueue[staker].pushBack(id_);
+        _sellingQueue[msg.sender].pushBack(id_);
 
         return true;
     }
@@ -504,6 +516,7 @@ abstract contract NGU404 is INGU404 {
         _transferERC721(erc721Owner, to_, id);
     }
 
+    // Transfers from msg.sender as sender. 
     function transfer(
         address to_,
         uint256 value_
@@ -653,7 +666,7 @@ abstract contract NGU404 is INGU404 {
     }
 
     /// @notice The below are helper functions for staked NFT management. 
-    function _stakeTokenById(uint256 tokenId, address owner) internal virtual {
+    function _setStakedIdOwner(uint256 tokenId, address owner) internal virtual {
         uint256 data = _stakedData[tokenId];
 
         assembly {

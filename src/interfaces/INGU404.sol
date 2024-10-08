@@ -55,7 +55,6 @@ interface INGU404 is IERC165 {
     function getIdAtQueueIndex(address owner_, uint128 index_) external view returns (uint256);
 
     function getERC721TokensInQueue(
-        uint256 start_,
         address owner_,
         uint256 count_
     ) external view returns (uint256[] memory);
