@@ -92,10 +92,7 @@ abstract contract NGU404 is INGU404 {
     /// @notice - Function to get the owner of an ERC-721 token.
     function ownerOf(uint256 tokenId) public view returns (address) {
         address owner = _getOwnerOf(tokenId);
-        require(
-            owner != address(0),
-            "NGU404: owner query for nonexistent token"
-        );
+        require(owner != address(0), "NGU404: owner query for nonexistent token");
         return owner;
     }
 
@@ -190,6 +187,7 @@ abstract contract NGU404 is INGU404 {
     ) internal virtual {
         // Minting is a special case for which we should not check the balance of
         // the sender, and we should increase the total supply.
+        // require(balanceOf[from_] >= value_, "Insufficient balance");
         if (from_ == address(0)) {
             totalSupply += value_;
         } else {
@@ -259,6 +257,8 @@ abstract contract NGU404 is INGU404 {
             // Whole tokens worth of ERC-20s get transferred as ERC-721s without any burning/minting.
             uint256 nftsToTransfer = value_ / units;
             for (uint256 i = 0; i < nftsToTransfer; ) {
+
+                // TODO: Troubleshoot this logic. For some reason, tokens are not being transferred.
                 uint256 tokenId = _sellingQueue[from_].popFront();
                 _transferERC721(from_, to_, tokenId);
                 unchecked {
@@ -267,7 +267,6 @@ abstract contract NGU404 is INGU404 {
             }
             // If the transfer changes either the sender or the recipient's holdings from a fractional to a non-fractional
             // amount (or vice versa), adjust ERC-721s.
-
             // First check if the send causes the sender to lose a whole token that was represented by an ERC-721
             // due to a fractional part being transferred.
             //
@@ -325,6 +324,10 @@ abstract contract NGU404 is INGU404 {
         return _sellingQueue[owner_].at(index_);
     }
 
+function removeItemFromQueueById(address owner_, uint256 id_) public {
+    _sellingQueue[owner_].removeById(id_);
+}
+
 /// @notice - This does what is intended above but it's mostly in the smart contract. Secondary implementation option.
 /// @notice - Refactor this trash.
     function getERC721TokensInQueue(
@@ -370,21 +373,26 @@ abstract contract NGU404 is INGU404 {
     }
 
     function stakeNFT(uint256 id_) public virtual returns (bool) {
+        // Tasks - 
+        // Require statements - must be owner, must have NFTs to stake, must have enough ERC20s to stake
+        // Subtract ERC20 from user's balance
+        // Add ERC20 to staked bank for user
+        // Remove nft id from selling queue
+        // Add NFT ID to staked mapping
+        // Add NFT ID => owner/index to _stakedData
+
         require(_getOwnerOf(id_) == msg.sender);
         require(erc721BalanceOf(msg.sender) > 0, "No NFTs to stake");
-        require(
-            balanceOf[msg.sender] >= units,
-            "Insufficent ERC20 balance to stake"
-        );
-        // Remove the associated ERC721 token ID from the _sellingQueue
-        _sellingQueue[msg.sender].removeById(id_);
-
+        require(balanceOf[msg.sender] >= units, "Insufficent ERC20 balance to stake");
+        // ERC-20 Logic
         // Remove one whole ERC20 token from the msg.sender's balanceOf mapping
-        balanceOf[msg.sender] -= units;
-
+        balanceOf[msg.sender] -= 1 * units;
         // Add one whole ERC20 token to the msg.sender's stakedERC20TokenBank mapping
-        stakedERC20TokenBank[msg.sender] += units;
+        stakedERC20TokenBank[msg.sender] += 1 * units;
 
+        // ERC-721 Logic
+        // Remove the associated ERC721 token ID from the _sellingQueue
+        removeItemFromQueueById(msg.sender, id_);
         // Add the ID to the _staked stack
         _staked[msg.sender].push(id_);
         // Set the _stakedData index mapping.
@@ -396,20 +404,34 @@ abstract contract NGU404 is INGU404 {
     }
 
     function unStakeNFT(uint256 id_) public virtual returns (bool) {
-        require(_getOwnerOfStakedId(id_) == msg.sender, "Only owner can unstake.");
+        // Tasks - 
+        // Require statements - must be owner, must have NFTs to stake, must have enough ERC20s to stake
+        // Subtract ERC20 from user's balance
+        // Add ERC20 to staked bank for user
+        // Remove nft id from selling queue
+        // Add NFT ID to staked mapping
+        // Add NFT ID => owner/index to _stakedData
+        address owner = _getOwnerOfStakedId(id_);
+        require(owner == msg.sender, "Only owner can unstake.");
+        uint256 stakedBalance = stakedERC20TokenBank[msg.sender];
+        require(stakedBalance >= 1 * units, "Insufficient staked balance to unstake");
 
-        // 1. Remove one whole ERC20 token from the msg.sender's stakedERC20TokenBank mapping
-        require( stakedERC20TokenBank[msg.sender] >= units, "Insufficent balance to unstake");
-        stakedERC20TokenBank[msg.sender] -= units;
-
-        // 2. Add one whole ERC20 token to the msg.sender's balanceOf mapping
+        // ERC-20 Logic
+        // Make the user's address exempt from ERC-721 minting so the ERC-20 transfer does not cause an NFT mint.
+        _setERC721TransferExempt(msg.sender, true);
+        // Retreive the ERC-20 from the staked bank
+        stakedERC20TokenBank[msg.sender] -= 1 * units;
+        // Add one whole ERC20 token to the msg.sender's balanceOf mapping
         balanceOf[msg.sender] += units;
+        // Remove the exemption
+        _setERC721TransferExempt(msg.sender, false);
 
-        // 3. Remove the associated ERC721 token ID from the _staked array
-        removeStakedById(msg.sender, id_);
-
-        // 4. Add the associated ERC721 token ID back to the _sellingQueue
+        // Add the associated ERC721 token ID back to the _sellingQueue
         _sellingQueue[msg.sender].pushBack(id_);
+        // Remove the associated ERC721 token ID from the _staked array
+        removeStakedFromQueueById(msg.sender, id_);
+        // Remove the associated ERC721 token ID from the _stakedData mapping
+        delete _stakedData[id_];
 
         return true;
     }
@@ -525,20 +547,21 @@ abstract contract NGU404 is INGU404 {
         if (to_ == address(0)) {
             revert InvalidRecipient();
         }
+        require(balanceOf[msg.sender] >= value_, "Insufficient balance");
 
         // Transferring ERC-20s directly requires the _transferERC20WithERC721 function
         return _transferERC20WithERC721(msg.sender, to_, value_);
     }
 
-    /// @dev - Maybe this is where we transfer ERC-721 tokens?? If we don't have an ID encoding prefix, it's hard
-    /// to tell what kind of asset we are attempting to transfer. 
-    /// @notice - Ideas: include a prefix like NGU-##?
-    function safeTransfer (
-        address to_,
-        uint256 id_
-    ) public virtual returns (bool) {
+    // /// @dev - Maybe this is where we transfer ERC-721 tokens?? If we don't have an ID encoding prefix, it's hard
+    // /// to tell what kind of asset we are attempting to transfer. 
+    // /// @notice - Ideas: include a prefix like NGU-##?
+    // function safeTransfer (
+    //     address to_,
+    //     uint256 id_
+    // ) public virtual returns (bool) {
         
-    }
+    // }
 
     function safeTransferFrom(
         address from_,
@@ -715,8 +738,8 @@ abstract contract NGU404 is INGU404 {
         _stakedData[id_] = data;
     }
 
-    /// @notice - removeStakedById is a helper function to remove the token ID from the owner's _owned array.
-    function removeStakedById(address owner, uint256 tokenId) internal {
+    /// @notice - removeStakedFromQueueById is a helper function to remove the token ID from the owner's _owned array.
+    function removeStakedFromQueueById(address owner, uint256 tokenId) internal {
         uint256 index = _getStakedIndex(tokenId);
         uint256 lastIndex = _staked[owner].length - 1;
 
