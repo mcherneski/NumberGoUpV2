@@ -257,10 +257,9 @@ abstract contract NGU404 is INGU404 {
             // Whole tokens worth of ERC-20s get transferred as ERC-721s without any burning/minting.
             uint256 nftsToTransfer = value_ / units;
             for (uint256 i = 0; i < nftsToTransfer; ) {
-
                 // TODO: Troubleshoot this logic. For some reason, tokens are not being transferred.
-                uint256 tokenId = _sellingQueue[from_].popFront();
-                _transferERC721(from_, to_, tokenId);
+                
+                _transferERC721(from_, to_, 0);
                 unchecked {
                     ++i;
                 }
@@ -328,6 +327,10 @@ function removeItemFromQueueById(address owner_, uint256 id_) public {
     _sellingQueue[owner_].removeById(id_);
 }
 
+function getQueueLength(address owner_) public view virtual returns (uint256) {
+    return _sellingQueue[owner_].size();
+}
+
 /// @notice - This does what is intended above but it's mostly in the smart contract. Secondary implementation option.
 /// @notice - Refactor this trash.
     function getERC721TokensInQueue(
@@ -335,12 +338,8 @@ function removeItemFromQueueById(address owner_, uint256 id_) public {
         uint256 count_
     ) public view virtual returns (uint256[] memory) {
         // We are creating a new count variable so we can do logic checks.
-    
-    /// @dev - TODO: Revert or return an empty array if queue is empty
-        // if (_sellingQueue[owner_].empty)
-        // {
-        //     revert
-        // }
+
+        require(!_sellingQueue[owner_].empty(), "Selling queue is empty");
 
         uint256 count;
         uint256 queueLength = _sellingQueue[owner_].size();

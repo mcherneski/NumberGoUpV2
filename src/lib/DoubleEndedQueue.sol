@@ -203,25 +203,24 @@ library DoubleEndedQueue {
         }
     }
 
-    function removeById(Uint256Deque storage deque, uint256 value) internal {
-        uint128 index = deque._indexMap[value]; // Find the index of the value
-        if (index == 0 && deque._data[deque._begin] != value) {
-            revert NotFound();
-        }
-
-        delete deque._data[index];
-        delete deque._indexMap[value];
-
-        if (index != deque._end - 1) {
-            // Shift the last element to the current index
-            uint128 lastIndex = deque._end - 1;
-            uint256 lastValue = deque._data[lastIndex];
-            deque._data[index] = lastValue;
-            deque._indexMap[lastValue] = index;
-            delete deque._data[lastIndex];
-        }
-
-        deque._end--;
+function removeById(Uint256Deque storage deque, uint256 value) internal {
+    uint128 index = deque._indexMap[value]; // Find the index of the value
+    if (index == 0 && deque._data[deque._begin] != value) {
+        revert NotFound();
     }
+
+    delete deque._indexMap[value];
+
+    // Shift elements to the left to fill the gap
+    for (uint128 i = index; i < deque._end - 1; i++) {
+        uint256 nextValue = deque._data[i + 1];
+        deque._data[i] = nextValue;
+        deque._indexMap[nextValue] = i;
+    }
+
+    // Remove the last element
+    delete deque._data[deque._end - 1];
+    deque._end--;
+}
 
 }
