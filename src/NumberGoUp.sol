@@ -53,7 +53,9 @@ contract NumberGoUp is Ownable, NGU404, ERC404UniswapV3Exempt {
             // Rarity 5: 46.9%
             d = 5;
         }
-        return string(abi.encodePacked(_uriBase, d.toString(), ".json"));
+        // Cache the result of d.toString() to save gas
+        string memory dString = d.toString();
+        return string(abi.encodePacked(_uriBase, dString, ".json"));
     }
 
     function setERC721TransferExempt(

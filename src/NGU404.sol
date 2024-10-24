@@ -144,6 +144,8 @@ abstract contract NGU404 is INGU404 {
             // Pop from the sender's selling queue
             if (id_ == 0){
                 tokenId = _sellingQueue[from_].popFront();
+            } else {
+                tokenId = id_;
             }
             // Remove from from_'s _owned array.
             removeOwnedById(from_, tokenId);
@@ -168,7 +170,7 @@ abstract contract NGU404 is INGU404 {
             // If this is a burn
             // Front of queue already popped in the _withdrawAndBurn721 function.
             /// @dev - TODO: Test this function with and without the _setOwnerOf function.
-            // Set owner to 0x0 in the ownedData mapping - Not sure if I need to do this since I just delete it from _ownedData. 
+            // Set owner to 0x0 in the ownedData mapping
             _setOwnerOf(tokenId, address(0));
             // delete the token from the ownedData mapping.
             delete _ownedData[tokenId];
@@ -185,18 +187,15 @@ abstract contract NGU404 is INGU404 {
         address to_,
         uint256 value_
     ) internal virtual {
-        // Minting is a special case for which we should not check the balance of
-        // the sender, and we should increase the total supply.
-        // require(balanceOf[from_] >= value_, "Insufficient balance");
         if (from_ == address(0)) {
             totalSupply += value_;
         } else {
-            // Deduct value from sender's balance.
-            balanceOf[from_] -= value_;
+            // Use unchecked block to save gas
+            unchecked {
+                balanceOf[from_] -= value_;
+            }
         }
 
-        // Update the recipient's balance.
-        // Can be unchecked because on mint, adding to totalSupply is checked, and on transfer balance deduction is checked.
         unchecked {
             balanceOf[to_] += value_;
         }
@@ -246,61 +245,20 @@ abstract contract NGU404 is INGU404 {
             }
         } else {
             // Case 4 - Neither the sender nor the recipient are ERC-721 transfer exempt.
-            // Strategy:
-            // 1. First deal with the whole tokens. These are easy and will just be transferred.
-            // 2. Look at the fractional part of the value:
-            //   a) If it causes the sender to lose a whole token that was represented by an NFT due to a
-            //      fractional part being transferred, withdraw and store an additional NFT from the sender.
-            //   b) If it causes the receiver to gain a whole new token that should be represented by an NFT
-            //      due to receiving a fractional part that completes a whole token, retrieve or mint an NFT to the recevier.
-
-            // Whole tokens worth of ERC-20s get transferred as ERC-721s without any burning/minting.
             uint256 nftsToTransfer = value_ / units;
             for (uint256 i = 0; i < nftsToTransfer; ) {
-                // TODO: Troubleshoot this logic. For some reason, tokens are not being transferred.
-                
                 _transferERC721(from_, to_, 0);
                 unchecked {
                     ++i;
                 }
             }
-            // If the transfer changes either the sender or the recipient's holdings from a fractional to a non-fractional
-            // amount (or vice versa), adjust ERC-721s.
-            // First check if the send causes the sender to lose a whole token that was represented by an ERC-721
-            // due to a fractional part being transferred.
-            //
-            // Process:
-            // Take the difference between the whole number of tokens before and after the transfer for the sender.
-            // If that difference is greater than the number of ERC-721s transferred (whole units), then there was
-            // an additional ERC-721 lost due to the fractional portion of the transfer.
-            // If this is a self-send and the before and after balances are equal (not always the case but often),
-            // then no ERC-721s will be lost here.
-            if (
-                erc20BalanceOfSenderBefore /
-                    units -
-                    erc20BalanceOf(from_) /
-                    units >
-                nftsToTransfer
-            ) {
+
+            // Handle fractional transfers
+            if (erc20BalanceOfSenderBefore / units - erc20BalanceOf(from_) / units > nftsToTransfer) {
                 _withdrawAndBurnERC721(from_);
             }
 
-            // Then, check if the transfer causes the receiver to gain a whole new token which requires gaining
-            // an additional ERC-721.
-            //
-            // Process:
-            // Take the difference between the whole number of tokens before and after the transfer for the recipient.
-            // If that difference is greater than the number of ERC-721s transferred (whole units), then there was
-            // an additional ERC-721 gained due to the fractional portion of the transfer.
-            // Again, for self-sends where the before and after balances are equal, no ERC-721s will be gained here.
-
-            if (
-                erc20BalanceOf(to_) /
-                    units -
-                    erc20BalanceOfRecipientBefore /
-                    units >
-                nftsToTransfer
-            ) {
+            if (erc20BalanceOf(to_) / units - erc20BalanceOfRecipientBefore / units > nftsToTransfer) {
                 _mintERC721(to_);
             }
         }
